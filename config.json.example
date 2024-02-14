@@ -1,0 +1,27 @@
+{
+    "pva_socket": "/var/opt/pva/mn/mn.sock",
+    "pva_connect_timeout": 600,
+    "pva_socket_read_delay": 2,
+    "keystone_endpoint": "https://power-panel.local:35357/v3",
+    "pp_url": "https://power-panel.local/api/v1",
+    "pp_login": "admin",
+    "post_hook_script": "/etc/cloudblue-connector/posthook.sh",
+    "post_hook_exec_timeout": 120,
+    "misc": {
+        "domainDeleteOnFail": true,
+        "hidePasswordsInLog": true,
+        "testMarketplaceId": "MP-43209",
+        "testMode": true,
+        "orderRamInMegabytes": false
+    },
+    "apiEndpoint": "https://api.clarocloud.com.co/public/v1",
+    "products": ["PRD-718-365-521", "PRD-428-165-279", "PRD-713-462-300"],
+    "report_usage": ["PRD-718-365-521"],
+    "report_suspended": true,
+    "dataRetentionPeriod": 15,
+    "templates": {
+        "PRD-718-365-521": {"grant": "TL-623-078-399", "revoke": "Access to VDC has been revoked"},
+        "PRD-428-165-279": {"grant": "TL-581-343-333", "revoke": "Access to VDC has been revoked"},
+        "PRD-713-462-300": {"grant": "TL-601-357-392", "revoke": "Access to Power Panel has been revoked"}
+    }
+}

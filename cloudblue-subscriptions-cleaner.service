@@ -1,0 +1,19 @@
+# ******************************************************************************
+# Copyright (c) 2020-2023, Virtuozzo International GmbH.
+# This source code is distributed under MIT software license.
+# ******************************************************************************
+
+[Unit]
+Description=Connect to backend, backup removal of canceled subscriptions
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/cloudblue-subscriptions-cleaner
+Restart=always
+RestartSec=3600
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+cloudblue_connector==1.0.0
+beautifulsoup4==4.12.2
+connect_sdk==22.0
+keystoneauth1==5.1.2
+python-keystoneclient==4.5.0
+lxml==4.9.3
+yattag==1.15.1
+

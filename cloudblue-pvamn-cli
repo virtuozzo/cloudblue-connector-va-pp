@@ -1,0 +1,282 @@
+#!/usr/bin/python3 -W ignore
+# ******************************************************************************
+# Copyright (c) 2020-2023, Virtuozzo International GmbH.
+# This source code is distributed under MIT software license.
+# ******************************************************************************
+import json
+
+from cloudblue_connector_backend.pvamn.api import AutomatorClient
+from cloudblue_connector.core import getLogger
+import argparse
+import warnings
+
+# Enable processing of deprecation warnings
+warnings.filterwarnings("ignore")
+
+LOG = getLogger("Connector")
+api = AutomatorClient(unix_socket='/var/opt/pva/mn/mn.sock')
+
+
+def print_resp(action, message='', data='', error=''):
+    result = 'OK'
+    if error:
+        result = 'ERROR'
+    response_data = {
+        "result": result,
+        "action": action,
+        "message": message,
+        "data": data,
+        "error": error
+    }
+
+    # Convert the dictionary to a JSON string
+    json_response = json.dumps(response_data, indent=2)
+
+    # Print or return the JSON response
+    print(json_response)
+
+
+def create_virtual_environment(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        result = api.create_ve(
+            name=args.name,
+            hostname=args.hostname,
+            os_template=args.os_template
+        )
+        if not result:
+            message = "Can't create VE, please check details in log file"
+            print_resp(action='create_virtual_environment', error=str(message))
+        else:
+            message = "VE created with following data: Name {}, Hostname {}, Template {}".format(
+                args.name, args.hostname, args.os_template)
+            print_resp(action='create_virtual_environment', message=message, data=result)
+    except Exception as err:
+        print_resp(action='create_virtual_environment', error=str(err))
+
+
+def update_virtual_environment(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        result = api.update_ve(
+            name=args.name,
+            ram=args.ram,
+            cpu_cores=args.cpu_cores,
+            disk_size=args.disk_size,
+            fip_count=args.additional_ips,
+            cpu_limit_mhz=args.cpu_mhz_limit,
+            resize=args.resize
+        )
+        message = "VE {} updated with following data: RAM {}, CPU: {}, DISK {}, ExtraIPs {}, CPU MHz {}".format(
+            args.name, args.ram, args.cpu_cores, args.disk_size, args.additional_ips, args.cpu_mhz_limit)
+        print_resp(action='update_virtual_environment', message=message, data=result)
+    except Exception as err:
+        print_resp(action='update_virtual_environment', error=str(err))
+
+
+def operate_ve_action(action, args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        if api.operate_ve(name=args.name, action=action):
+            result = "{} VE {} done".format(action.capitalize(), args.name)
+            error = ''
+        else:
+            result = "{} VE {} failed".format(action.capitalize(), args.name)
+            error = "{} VE {} failed, error unknown".format(action.capitalize(), args.name)
+        print_resp(action='{}_virtual_environment'.format(action), message=result, error=error)
+    except Exception as err:
+        print_resp(action='{}_virtual_environment'.format(action), error=str(err))
+
+
+def delete_virtual_environment(args):
+    operate_ve_action('delete', args)
+
+
+def start_virtual_environment(args):
+    operate_ve_action('start', args)
+
+
+def stop_virtual_environment(args):
+    operate_ve_action('stop', args)
+
+
+def suspend_virtual_environment(args):
+    operate_ve_action('suspend', args)
+
+
+def set_ve_creds(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        if api.set_ve_password(name=args.name, user=args.login, password=args.password):
+            result = "Set VE {} password for user {} done".format(args.name, args.login)
+            error = ''
+        else:
+            result = "Set VE {} password for user {} failed".format(args.name, args.login)
+            error = "Set VE {} password for user {} failed, error unknown".format(args.name, args.login)
+        print_resp(action='set_ve_creds', message=result, error=error)
+    except Exception as err:
+        print_resp(action='set_ve_creds', error=str(err))
+
+
+def get_virtual_environment_info(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        result = api.get_ve_info(args.name)
+        print_resp(action='get_virtual_environment_info', data=result)
+    except Exception as err:
+        print_resp(action='get_virtual_environment_info', error=str(err))
+
+
+def list_cluster_templates(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        result = api.get_templates()
+        for t in result:
+            del result[t]['virtual_config']
+        print_resp(action='list_cluster_templates', data=result)
+    except Exception as err:
+        print_resp(action='list_cluster_templates', error=str(err))
+
+
+def list_local_templates(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        if args.ve_type == 'ct':
+            result = api.get_templates(host_uuid=args.host_uuid, check_flavors=True)
+        else:
+            result = api.get_templates(host_uuid=args.host_uuid)
+        for t in result:
+            del result[t]['virtual_config']
+        print_resp(action='list_local_templates', data=result)
+    except Exception as err:
+        print_resp(action='list_local_templates', error=str(err))
+
+
+def get_nodes_stat(args):
+    if not args.debug:
+        LOG.disabled = True
+    try:
+        result = api.get_nodes_stat()
+        print_resp(action='get_nodes_stat', data=result)
+    except Exception as err:
+        print_resp(action='get_nodes_stat', error=str(err))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Manage virtual environments")
+    subparsers = parser.add_subparsers(title="Actions", dest="action")
+
+    # Create VE parser
+    create_ve_parser = subparsers.add_parser("create-ve", help="Create a virtual environment")
+    create_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    create_ve_parser.add_argument("--hostname", required=True, help="Hostname of the virtual environment")
+    create_ve_parser.add_argument("--os-template", required=True, help="OS template for the virtual environment")
+    create_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                  help="Enable debug for current action")
+    create_ve_parser.set_defaults(func=create_virtual_environment)
+
+    # Update VE parser
+    # name, ram, cpu_cores, disk_size, fip_count=0, cpu_limit_mhz=0, resize=False
+    update_ve_parser = subparsers.add_parser("update-ve", help="Update a virtual environment")
+    update_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    update_ve_parser.add_argument("--ram", required=True, type=int, help="Amount of RAM in GB")
+    update_ve_parser.add_argument("--cpu-cores", required=True, type=int, help="Amount of CPU cores")
+    update_ve_parser.add_argument("--cpu-mhz-limit", required=True, type=int,
+                                  help="Amount of MHz allowed to VE, set to 0 for unlim")
+    update_ve_parser.add_argument("--disk-size", required=True, type=int, help="Amount of hard disk size in GB")
+    update_ve_parser.add_argument("--additional-ips", required=True, type=int,
+                                  help="Amount of additional IPv4, set to 0 if not needed.")
+    update_ve_parser.add_argument('--resize', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                  help="Allow disk resize during update [true/false]")
+    update_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                  help="Enable debug for current action")
+    update_ve_parser.set_defaults(func=update_virtual_environment)
+
+    # Start VE parser
+    start_ve_parser = subparsers.add_parser("start-ve", help="Start a virtual environment")
+    start_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    start_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                 help="Enable debug for current action")
+    start_ve_parser.set_defaults(func=start_virtual_environment)
+
+    # Stop VE parser
+    stop_ve_parser = subparsers.add_parser("stop-ve", help="Stop a virtual environment")
+    stop_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    stop_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                help="Enable debug for current action")
+    stop_ve_parser.set_defaults(func=stop_virtual_environment)
+
+    # Suspend VE parser
+    suspend_ve_parser = subparsers.add_parser("suspend-ve", help="Suspend a virtual environment")
+    suspend_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    suspend_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                   help="Enable debug for current action")
+    suspend_ve_parser.set_defaults(func=suspend_virtual_environment)
+
+    # Delete VE parser
+    delete_ve_parser = subparsers.add_parser("delete-ve", help="Delete a virtual environment")
+    delete_ve_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    delete_ve_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                  help="Enable debug for current action")
+    delete_ve_parser.set_defaults(func=delete_virtual_environment)
+
+    # Set VE password
+    set_ve_password_parser = subparsers.add_parser("set-ve-creds", help="Set a virtual environment password. Works "
+                                                                        "only on running VE, in case if vm is "
+                                                                        "stopeed, this method have iterational check "
+                                                                        "for waiting vm up")
+    set_ve_password_parser.add_argument("--name", required=True, help="Name of the virtual environment")
+    set_ve_password_parser.add_argument("--login", required=True, choices=['root', 'Administrator'],
+                                        help="VE user login")
+    set_ve_password_parser.add_argument("--password", required=True, help="VE user password")
+    set_ve_password_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                        help="Enable debug for current action")
+    set_ve_password_parser.set_defaults(func=set_ve_creds)
+
+    # Get VE info parser
+    get_ve_info_parser = subparsers.add_parser("get-ve-info", help="Get a virtual environment info")
+    get_ve_info_parser.add_argument("--name", required=True, help="Name of the virtual environment to delete")
+    get_ve_info_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                    help="Enable debug for current action")
+    get_ve_info_parser.set_defaults(func=get_virtual_environment_info)
+
+    # List storage templates parser
+    list_templates_parser = subparsers.add_parser("cluster-templates-list", help="Get list of cluster templates")
+    list_templates_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                       help="Enable debug for current action")
+    list_templates_parser.set_defaults(func=list_cluster_templates)
+
+    # List local templates parser
+    list_local_templates_parser = subparsers.add_parser("local-templates-list",
+                                                        help="Get list of local hypervisor templates")
+    list_local_templates_parser.add_argument("--host-uuid", required=True,
+                                             help="Hypervisor uuid, can be discovered via hardnodes-stat action")
+    list_local_templates_parser.add_argument('--ve-type', choices=['vm', 'ct'], default='vm',
+                                             help='Template type, allowed values vm/ct')
+    list_local_templates_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                             help="Enable debug for current action")
+    list_local_templates_parser.set_defaults(func=list_local_templates)
+
+    # Get hardnodes start parser
+    get_nodes_stat_parser = subparsers.add_parser("hardnodes-stat", help="Get hypervisor statistic")
+    get_nodes_stat_parser.add_argument('--debug', default=False, type=lambda x: (str(x).lower() == 'true'),
+                                       help="Enable debug for current action")
+    get_nodes_stat_parser.set_defaults(func=get_nodes_stat)
+
+    args = parser.parse_args()
+
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        print("No action specified. Use --help for usage information.")
+
+
+if __name__ == "__main__":
+    main()

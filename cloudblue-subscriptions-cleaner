@@ -1,0 +1,20 @@
+#!/usr/bin/python3 -W ignore
+# ******************************************************************************
+# Copyright (c) 2020-2023, Virtuozzo International GmbH.
+# This source code is distributed under MIT software license.
+# ******************************************************************************
+
+
+from cloudblue_connector_backend.connector import ConnectorConfig
+from cloudblue_connector_backend.connector import ConnectorMixin
+
+def process_subscriptions_removal():
+    """Process all new Fulfillments"""
+    ConnectorConfig(file='/etc/cloudblue-connector/config.json', report_usage=False)
+    mngr = ConnectorMixin()
+    if not mngr.is_backend_alive():
+        return
+    mngr.delete_canceled_subscriptions()
+    return True
+
+process_subscriptions_removal()
